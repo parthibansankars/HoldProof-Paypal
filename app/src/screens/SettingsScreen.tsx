@@ -53,7 +53,7 @@ export default function SettingsScreen({ navigation }: Props) {
       <Card>
         <KeyValue k="PayPal client ID" v={creds ? mask(creds.paypalClientId) : '—'} mono />
         <KeyValue k="PayPal secret" v={creds ? '••••••••' : '—'} />
-        <KeyValue k="AI key" v={creds ? mask(creds.anthropicApiKey) : '—'} mono />
+        <KeyValue k="AI key" v={creds ? mask(creds.aiApiKey) : '—'} mono />
       </Card>
       <Button title="Change keys" variant="secondary" onPress={() => navigation.navigate('Credentials', { editing: true })} />
       <SectionTitle>Environment</SectionTitle>

@@ -45,7 +45,7 @@ const captureSucceeded = (status: string) => status === 'COMPLETED' || status ==
 const refundCounts = (status: string) => status !== 'FAILED' && status !== 'CANCELLED';
 
 async function aiKey(): Promise<string> {
-  return (await requireCredentials()).anthropicApiKey;
+  return (await requireCredentials()).aiApiKey;
 }
 
 async function mustGet(id: string): Promise<Job> {

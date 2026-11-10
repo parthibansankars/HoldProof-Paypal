@@ -36,7 +36,7 @@ export default function NewJobScreen({ navigation }: Props) {
         setError('Add your sandbox keys in Settings first.');
         return;
       }
-      const result = await scopeJob(creds.anthropicApiKey, description.trim(), amount);
+      const result = await scopeJob(creds.aiApiKey, description.trim(), amount);
       if (!result.ok) setError(result.error);
       else if (result.value.criteria.length === 0) setError('No photo-checkable criteria could be found. Describe a visible end result.');
       else setScope(result.value);

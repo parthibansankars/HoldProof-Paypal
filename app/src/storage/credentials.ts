@@ -8,7 +8,7 @@ import type { Credentials } from '../types';
 const KEYS = {
   paypalClientId: 'hp.paypal.clientId',
   paypalClientSecret: 'hp.paypal.clientSecret',
-  anthropicApiKey: 'hp.ai.apiKey',
+  aiApiKey: 'hp.ai.apiKey',
 } as const;
 
 const OPTIONS: SecureStore.SecureStoreOptions = {
@@ -16,19 +16,19 @@ const OPTIONS: SecureStore.SecureStoreOptions = {
 };
 
 export async function loadCredentials(): Promise<Credentials | null> {
-  const [paypalClientId, paypalClientSecret, anthropicApiKey] = await Promise.all([
+  const [paypalClientId, paypalClientSecret, aiApiKey] = await Promise.all([
     SecureStore.getItemAsync(KEYS.paypalClientId, OPTIONS),
     SecureStore.getItemAsync(KEYS.paypalClientSecret, OPTIONS),
-    SecureStore.getItemAsync(KEYS.anthropicApiKey, OPTIONS),
+    SecureStore.getItemAsync(KEYS.aiApiKey, OPTIONS),
   ]);
-  if (!paypalClientId || !paypalClientSecret || !anthropicApiKey) return null;
-  return { paypalClientId, paypalClientSecret, anthropicApiKey };
+  if (!paypalClientId || !paypalClientSecret || !aiApiKey) return null;
+  return { paypalClientId, paypalClientSecret, aiApiKey };
 }
 
 export async function saveCredentials(c: Credentials): Promise<void> {
   await SecureStore.setItemAsync(KEYS.paypalClientId, c.paypalClientId.trim(), OPTIONS);
   await SecureStore.setItemAsync(KEYS.paypalClientSecret, c.paypalClientSecret.trim(), OPTIONS);
-  await SecureStore.setItemAsync(KEYS.anthropicApiKey, c.anthropicApiKey.trim(), OPTIONS);
+  await SecureStore.setItemAsync(KEYS.aiApiKey, c.aiApiKey.trim(), OPTIONS);
 }
 
 export async function clearCredentials(): Promise<void> {

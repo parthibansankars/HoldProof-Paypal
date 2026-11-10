@@ -132,5 +132,5 @@ export interface Job {
 export interface Credentials {
   paypalClientId: string;
   paypalClientSecret: string;
-  anthropicApiKey: string;
+  aiApiKey: string;
 }

@@ -16,11 +16,11 @@ On first launch, before any key can be entered, HoldProof shows a scrollable pop
 | What HoldProof is | A PayPal authorization hold that the client approves before work starts, captured only after AI checks the before-and-after photos against the agreed criteria and a deterministic Judge permits it. |
 | Hackathon demonstration, Sandbox only | Built for the PayPal AI Hackathon 2026. PayPal Sandbox only; never moves real money; never enter production (live) PayPal credentials; the PayPal host is hard-coded to the sandbox. |
 | Why the app asks for keys | This build has no server-side code. It calls PayPal Sandbox and the AI provider directly from the phone. This is acceptable only because the keys are sandbox and test keys entered by the person testing. |
-| The three keys | **PayPal Sandbox Client ID and Client Secret**: obtain an access token; create the order, authorize, capture, refund, void; read order, payment and dispute status. **Anthropic API key**: Proposer and Critic calls on `claude-opus-5-5`. |
+| The three keys | **PayPal Sandbox Client ID and Client Secret**: obtain an access token; create the order, authorize, capture, refund, void; read order, payment and dispute status. **Gemini API key** (Google Gemini API): Proposer and Critic calls on `gemini-3.5-flash-lite`. |
 | Where the keys are stored | Only in this device's encrypted storage (Android Keystore through `expo-secure-store`). Never in the APK, source code, logs, the activity timeline, evidence records or PDF/JSON exports. |
-| Where keys and data are sent | Keys go only to `api-m.sandbox.paypal.com` and `api.anthropic.com`. To `api.anthropic.com`: the job description and price, the agreed criteria, the BEFORE and AFTER photos and, for a dispute draft, the dispute summary and the evidence record (including photo times and locations). To `api-m.sandbox.paypal.com`: the job title, the amount, the evidence digest, a job reference id (also used to build the capture invoice id) and, for a partial refund, the text of the contested criterion in the note to the client. Nothing is sent anywhere else; there is no HoldProof server and no analytics. |
-| AI cost | Billed to the owner of the Anthropic API key. Each photo check makes two AI calls. |
-| How to get the keys | PayPal Developer Dashboard → Apps & Credentials → Sandbox → create or open a REST app; Anthropic Console → API keys. The sandbox **buyer** account is used by the client on PayPal's own approval page and is never entered into the app. |
+| Where keys and data are sent | Keys go only to `api-m.sandbox.paypal.com` and `generativelanguage.googleapis.com`. To `generativelanguage.googleapis.com`: the job description and price, the agreed criteria, the BEFORE and AFTER photos and, for a dispute draft, the dispute summary and the evidence record (including photo times and locations). To `api-m.sandbox.paypal.com`: the job title, the amount, the evidence digest, a job reference id (also used to build the capture invoice id) and, for a partial refund, the text of the contested criterion in the note to the client. Nothing is sent anywhere else; there is no HoldProof server and no analytics. |
+| AI cost and data use | A free Gemini API key works. Each photo check makes two AI calls. On the Gemini free tier, Google may use the content sent (job description and photos) to improve its products; on a paid tier it does not. The free tier has per-minute and per-day request limits. Any paid usage is billed to the key owner. |
+| How to get the keys | PayPal Developer Dashboard → Apps & Credentials → Sandbox → create or open a REST app; Google AI Studio → Get API key (free, no card needed). The sandbox **buyer** account is used by the client on PayPal's own approval page and is never entered into the app. |
 | How to remove the keys | Settings → **Remove keys from this device**, or uninstall the app. |
 | Production design | Keys never on the phone; HoldProof's own backend holds the secrets, calls PayPal, verifies PayPal webhook signatures and runs the Judge server-side. |
 | Honest limits | An authorization hold with AI evidence checking, not escrow and not a neutral arbiter. Photos can be staged and GPS can be spoofed; the record proves it was not changed after approval, not that the photos are truthful. PayPal decides disputes. |
@@ -68,7 +68,7 @@ The Judge permits a capture only if **all** of these hold: the hold is active an
 |---|---|---|
 | **PayPal Sandbox Client ID and Secret** | [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox) | Log in → **Apps & Credentials** → make sure **Sandbox** is selected → **Create App** (type: Merchant) → copy the Client ID and Secret. |
 | **A PayPal Sandbox buyer account** (the "client") | Same dashboard → **Testing Tools → Sandbox Accounts** | A *Personal* sandbox account is created automatically. Open it → **View/Edit account** to see its email and password. You log in with it when approving the hold. |
-| **Anthropic API key** (AI agents) | [console.anthropic.com](https://console.anthropic.com/settings/keys) | Create a key. Usage is billed to that account; each verdict is two vision calls. |
+| **Gemini API key** (AI agents) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Sign in with a Google account → **Create API key**. The free tier needs no payment card; each verdict is two vision calls. |
 
 Judges: a ready-to-use credential bundle is provided in the Devpost **private testing instructions**, never in this repository.
 
@@ -126,7 +126,7 @@ Every POST carries a `PayPal-Request-Id` idempotency key. Money state shown in t
 ```
 Android app ──HTTPS──► PayPal Sandbox REST APIs   (money, hold, evidence anchor)
      │
-     └──HTTPS──► Anthropic Messages API            (Proposer, Critic; structured JSON output)
+     └──HTTPS──► Google Gemini API (generateContent) (Proposer, Critic; structured JSON output)
 ```
 
 - **No server.** Without a server there are no webhooks. The app polls the order while it waits for the client's approval (stopping after five consecutive errors until **Check again** is pressed) and reads authorization, capture, refund and dispute status from PayPal's GET endpoints on demand. PayPal's responses are authoritative.
@@ -163,7 +163,7 @@ Requirements: Node 20+, JDK 17–21 (Android Studio's bundled JDK works), Androi
 ```bash
 cd app
 npm ci
-npm test               # 46 unit tests: Judge, money, digest, PayPal client, service money paths (mocked)
+npm test               # 55 unit tests: Judge, money, digest, PayPal client, Gemini transport, service money paths (mocked)
 npm run typecheck
 npx expo prebuild --platform android
 cd android && ./gradlew assembleRelease      # APK: app/android/app/build/outputs/apk/release/app-release.apk

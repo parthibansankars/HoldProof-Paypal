@@ -4,7 +4,7 @@ HoldProof uses three roles at runtime. Two are AI model calls; the third is dete
 
 | Role | Kind | Input | Output | Can move money? |
 |---|---|---|---|---|
-| **Proposer** | Model call (`claude-opus-5-5`, structured JSON output) | Job text (scope) or BEFORE + AFTER photos and criteria (verdict) | Criteria and refusals, or a per-criterion verdict with reasons | No |
+| **Proposer** | Model call (Google Gemini `gemini-3.5-flash-lite`, structured JSON output) | Job text (scope) or BEFORE + AFTER photos and criteria (verdict) | Criteria and refusals, or a per-criterion verdict with reasons | No |
 | **Critic** | Separate model call with an adversarial prompt | The photos, the criteria, and only the Proposer's pass/fail flags (not its reasoning) | Objections (`different_scene`, `criterion_unmet`, `criterion_not_visible`, `not_photo_checkable`, `image_quality`, `other`) | No; it can only object |
 | **Judge** | Deterministic TypeScript, unit tested | Job state, both agent outputs, photo metadata, amount | Allowed or refused, with every check shown | Permits a call; the worker confirms; PayPal executes |
 
@@ -19,9 +19,10 @@ HoldProof uses three roles at runtime. Two are AI model calls; the third is dete
 ## Failure handling
 
 - **Refusal, truncation, invalid JSON or a schema mismatch** becomes an error for that agent, and the Judge's validity check fails.
-- **Network errors and timeouts:** the SDK retries twice with a 120-second timeout; after that the result is an error, and the Judge fails closed.
-- **Model fallback:** requests use the server-side fallback beta (`fallbacks: "default"`), so a policy decline can be retried on a fallback model inside the same call.
-- **Cost control:** photos are resized to 1024 px JPEG before upload; effort is `medium` (`low` for the dispute check); the Critic runs only when the Proposer produced a valid verdict.
+- **Blocked prompts and safety stops:** a `promptFeedback.blockReason`, or any finish reason other than `STOP`, is an error for that agent.
+- **Network errors, rate limits and timeouts:** one retry after two seconds for network errors, HTTP 429 and 5xx, with a 120-second timeout per request; after that the result is an error, and the Judge fails closed.
+- **Structured output:** the request uses the documented REST field `generationConfig.responseFormat.text.schema`; if the API rejects it as an unknown field, the transport retries with `responseMimeType` + `responseJsonSchema`, then with the schema in the instructions. Every answer is still validated with Zod.
+- **Cost and quota control:** photos are resized to 1024 px JPEG before upload, and the Critic runs only when the Proposer produced a valid verdict. A free Gemini key is enough for demos.
 
 ## Dispute drafting
 

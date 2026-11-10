@@ -3,10 +3,10 @@
  * Neither can move money: their output goes to the deterministic Judge (src/core/judge.ts).
  * Any refusal, schema failure or network failure returns an error instead of a verdict (fail closed).
  */
-import Anthropic from '@anthropic-ai/sdk';
 import type { ZodType } from 'zod';
 import { AI_MODEL } from '../config';
 import type { Criterion, Critique, Proposal } from '../types';
+import { generate, type GeminiPart } from './gemini';
 import {
   CritiqueSchema,
   DisputeCheckSchema,
@@ -23,18 +23,6 @@ import {
 
 export type AgentResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
-function makeClient(apiKey: string): Anthropic {
-  return new Anthropic({
-    apiKey,
-    // React Native is not a browser, but the SDK's environment check can misdetect it.
-    // The key is user-entered and stored in the device keystore (sandbox hackathon build).
-    dangerouslyAllowBrowser: true,
-    // 180 s per attempt and one retry keep the worst-case wait bounded (about six minutes).
-    timeout: 180_000,
-    maxRetries: 1,
-  });
-}
-
 type ImageInput = { base64: string; label: string };
 
 async function callStructured<T>(
@@ -45,73 +33,49 @@ async function callStructured<T>(
     images?: ImageInput[];
     schema: Record<string, unknown>;
     validator: ZodType<T>;
-    effort: 'low' | 'medium' | 'high';
     maxTokens?: number;
   },
 ): Promise<AgentResult<T>> {
-  try {
-    const client = makeClient(apiKey);
-    const content: Anthropic.Beta.BetaContentBlockParam[] = [];
-    for (const img of opts.images ?? []) {
-      content.push({ type: 'text', text: img.label });
-      content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: img.base64 } });
-    }
-    content.push({ type: 'text', text: opts.text });
-
-    const response = await client.beta.messages.create({
-      model: AI_MODEL,
-      // Thinking tokens count against max_tokens on this model; leave room for the JSON answer after reasoning.
-      max_tokens: opts.maxTokens ?? 16000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      system: opts.system,
-      output_config: { effort: opts.effort, format: { type: 'json_schema', schema: opts.schema } },
-      messages: [{ role: 'user', content }],
-    });
-
-    if (response.stop_reason === 'refusal') {
-      return { ok: false, error: 'The AI model declined this request.' };
-    }
-    if (response.stop_reason === 'max_tokens') {
-      return { ok: false, error: 'The AI response was cut off before it finished. No money moved. Try again; for a photo check, capture the AFTER photo again.' };
-    }
-    const text = response.content
-      .map((b) => (b.type === 'text' ? b.text : ''))
-      .join('')
-      .trim();
-    if (!text) return { ok: false, error: 'The AI model returned no answer.' };
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      return { ok: false, error: 'The AI answer was not valid JSON.' };
-    }
-    const result = opts.validator.safeParse(parsed);
-    if (!result.success) return { ok: false, error: 'The AI answer did not match the required schema.' };
-    return { ok: true, value: result.data };
-  } catch (e) {
-    return { ok: false, error: describeAiError(e) };
+  const parts: GeminiPart[] = [];
+  for (const img of opts.images ?? []) {
+    parts.push({ text: img.label });
+    parts.push({ inlineData: { mimeType: 'image/jpeg', data: img.base64 } });
   }
+  parts.push({ text: opts.text });
+
+  const res = await generate(apiKey, {
+    system: opts.system,
+    parts,
+    schema: opts.schema,
+    // Reasoning tokens can count against the output limit; leave room for the JSON answer.
+    maxOutputTokens: opts.maxTokens ?? 16384,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(res.text);
+  } catch {
+    return { ok: false, error: 'The AI answer was not valid JSON.' };
+  }
+  const result = opts.validator.safeParse(parsed);
+  if (!result.success) return { ok: false, error: 'The AI answer did not match the required schema.' };
+  return { ok: true, value: result.data };
 }
 
 export function describeAiError(e: unknown): string {
-  if (e instanceof Anthropic.AuthenticationError) return 'The AI API key was rejected.';
-  if (e instanceof Anthropic.PermissionDeniedError) return 'The AI API key does not have access to this model.';
-  if (e instanceof Anthropic.RateLimitError) return 'The AI provider is rate limiting requests. Try again shortly.';
-  if (e instanceof Anthropic.APIConnectionTimeoutError) return 'The AI request timed out.';
-  if (e instanceof Anthropic.APIConnectionError) return 'The AI provider could not be reached. Check the connection.';
-  if (e instanceof Anthropic.APIError) return `AI provider error ${e.status ?? ''}: ${e.message}`.trim();
   return (e as Error)?.message ?? 'Unknown AI error';
 }
 
-/** Checks that the key works without spending tokens on a generation. */
+/** Checks that the key works with a tiny request (the Gemini docs list no key-check endpoint). */
 export async function testAiKey(apiKey: string): Promise<AgentResult<string>> {
-  try {
-    const model = await makeClient(apiKey).models.retrieve(AI_MODEL);
-    return { ok: true, value: model.display_name ?? model.id };
-  } catch (e) {
-    return { ok: false, error: describeAiError(e) };
-  }
+  const res = await generate(apiKey, {
+    system: 'You are a connectivity check.',
+    parts: [{ text: 'Reply with the single word OK.' }],
+    maxOutputTokens: 512,
+  });
+  // A cut-off or empty answer still proves the key and model are accepted.
+  if (res.ok || /cut off|empty answer|stopped without/i.test(res.error)) return { ok: true, value: AI_MODEL };
+  return { ok: false, error: res.error };
 }
 
 const SCOPE_SYSTEM = `You are the Proposer agent in HoldProof, a payment app for solo service workers.
@@ -127,7 +91,6 @@ export function scopeJob(apiKey: string, description: string, amount: string): P
     text: `Job description from the worker:\n"""${description}"""\nAgreed price: ${amount} USD.`,
     schema: scopeJsonSchema as unknown as Record<string, unknown>,
     validator: ScopeSchema,
-    effort: 'medium',
   });
 }
 
@@ -157,7 +120,6 @@ export function proposeVerdict(
     text: `Agreed acceptance criteria:\n${criteriaBlock(criteria)}\n\nReturn your verdict for every criterion id listed above.`,
     schema: proposalJsonSchema as unknown as Record<string, unknown>,
     validator: ProposalSchema,
-    effort: 'medium',
   });
 }
 
@@ -191,7 +153,6 @@ export function critiqueVerdict(
       'Look for reasons this verdict is wrong.',
     schema: critiqueJsonSchema as unknown as Record<string, unknown>,
     validator: CritiqueSchema,
-    effort: 'medium',
   });
 }
 
@@ -214,7 +175,6 @@ export async function draftDisputeResponse(
     text: `Dispute: ${disputeSummary}\n\nEvidence record (JSON):\n${recordJson}`,
     schema: disputeDraftJsonSchema as unknown as Record<string, unknown>,
     validator: DisputeDraftSchema,
-    effort: 'medium',
   });
   if (!draft.ok) return draft;
   const checked = await callStructured(apiKey, {
@@ -222,7 +182,6 @@ export async function draftDisputeResponse(
     text: `Evidence record (JSON):\n${recordJson}\n\nDraft response:\n"""${draft.value.response_text}"""`,
     schema: disputeCheckJsonSchema as unknown as Record<string, unknown>,
     validator: DisputeCheckSchema,
-    effort: 'low',
   });
   if (!checked.ok) return checked;
   return { ok: true, value: { text: checked.value.cleaned_text, removed: checked.value.unsupported_statements } };

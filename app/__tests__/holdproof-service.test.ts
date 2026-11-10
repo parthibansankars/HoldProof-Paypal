@@ -16,7 +16,7 @@ const mockPayPal = {
 };
 
 jest.mock('../src/storage/credentials', () => ({
-  loadCredentials: async () => ({ paypalClientId: 'client-id-123', paypalClientSecret: 'client-secret-123', anthropicApiKey: 'sk-ant-test-123' }),
+  loadCredentials: async () => ({ paypalClientId: 'client-id-123', paypalClientSecret: 'client-secret-123', aiApiKey: 'sk-ant-test-123' }),
 }));
 
 jest.mock('../src/storage/jobs', () => {

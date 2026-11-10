@@ -7,9 +7,12 @@ export const PAYPAL_BASE_URL = 'https://api-m.sandbox.paypal.com';
 export const PAYPAL_ENVIRONMENT_LABEL = 'PayPal Sandbox';
 /** The only two hosts that ever receive the keys or any job data. */
 export const PAYPAL_HOST = PAYPAL_BASE_URL.replace(/^https:\/\//, '');
-export const AI_HOST = 'api.anthropic.com';
+export const AI_HOST = 'generativelanguage.googleapis.com';
+export const AI_BASE_URL = `https://${AI_HOST}`;
+export const AI_PROVIDER = 'Google Gemini API';
 
-export const AI_MODEL = 'claude-opus-5-5';
+/** Stable Gemini model with image input, structured output and a free tier (Google AI Studio). */
+export const AI_MODEL = 'gemini-3.5-flash-lite';
 
 /** Return/cancel URLs after the client approves on PayPal. Deep link back into the app. */
 export const APPROVAL_RETURN_URL = 'holdproof://approved';
@@ -65,7 +68,7 @@ export const SETUP_NOTICE: Notice = {
       heading: 'The three keys and what each is used for',
       lines: [
         'PayPal Sandbox Client ID and Client Secret: used together to obtain a PayPal access token, then to create the order, authorize, capture, refund and void, and to read order, payment and dispute status.',
-        `Anthropic API key: used for the Proposer and Critic AI calls (model ${AI_MODEL}) that scope the job, check the photos and draft dispute responses.`,
+        `Gemini API key (${AI_PROVIDER}): used for the Proposer and Critic AI calls (model ${AI_MODEL}) that scope the job, check the photos and draft dispute responses.`,
       ],
     },
     {
@@ -85,14 +88,18 @@ export const SETUP_NOTICE: Notice = {
       ],
     },
     {
-      heading: 'AI cost',
-      lines: ['AI usage is billed to the owner of the Anthropic API key. Each photo check makes two AI calls.'],
+      heading: 'AI cost and data use',
+      lines: [
+        'A free Gemini API key works. Each photo check makes two AI calls, and the free tier has per-minute and per-day request limits.',
+        'On the Gemini free tier, Google may use the content you send (job description and photos) to improve its products. On a paid Gemini tier it does not. Use a paid key, or avoid photographing people or private details, if that matters to you.',
+        'Any paid usage is billed to the owner of the Gemini API key.',
+      ],
     },
     {
       heading: 'How to get the keys',
       lines: [
         'PayPal: PayPal Developer Dashboard > Apps & Credentials > Sandbox > create or open a REST app, then copy its Client ID and Secret.',
-        'Anthropic: Anthropic Console > API keys > create a key.',
+        'Gemini: Google AI Studio (aistudio.google.com) > Get API key > create a key. No payment card is needed for the free tier.',
         'The sandbox BUYER (personal) account is used by the client on PayPal’s own approval page. It is never entered into this app.',
       ],
     },

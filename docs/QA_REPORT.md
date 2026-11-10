@@ -6,7 +6,7 @@ Status legend: **Passed** (run and verified) · **Not run** (not yet executed) �
 
 | Area | Result | Evidence |
 |---|---|---|
-| Unit tests (Jest, 46 tests) | Passed | `cd app && npx jest` — Judge capture, refund (including FAILED/CANCELLED refunds being ignored) and void guards; money parsing; digest determinism and tamper sensitivity; PayPal client request shape, idempotency header, token reuse, 204 handling, error mapping; service money paths with mocked storage and PayPal client (adopting a COMPLETED order's authorization, DENIED/VOIDED/404 to CANCELLED, cancel refused after approval, declined capture leaves the hold, already-captured adoption, EXPIRED shown as VOIDED, refund status refresh, PayPal client cache reset) |
+| Unit tests (Jest, 55 tests) | Passed | `cd app && npx jest` — Gemini transport (endpoint, key header, structured-output field and fallback, retries, rejected key, fail-closed answers); Judge capture, refund (including FAILED/CANCELLED refunds being ignored) and void guards; money parsing; digest determinism and tamper sensitivity; PayPal client request shape, idempotency header, token reuse, 204 handling, error mapping; service money paths with mocked storage and PayPal client (adopting a COMPLETED order's authorization, DENIED/VOIDED/404 to CANCELLED, cancel refused after approval, declined capture leaves the hold, already-captured adoption, EXPIRED shown as VOIDED, refund status refresh, PayPal client cache reset) |
 | TypeScript strict typecheck | Passed | `npm run typecheck` |
 | Android JavaScript bundle (Metro, Hermes bytecode) | Passed | `npx expo export --platform android` bundled 1,688 modules |
 | Release APK build | See PROJECT_STATUS.md | `./gradlew assembleRelease` |

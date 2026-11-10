@@ -29,7 +29,7 @@ export default function CredentialsScreen({ navigation, route }: Props) {
         if (c) {
           setClientId(c.paypalClientId);
           setSecret(c.paypalClientSecret);
-          setAiKey(c.anthropicApiKey);
+          setAiKey(c.aiApiKey);
         }
       })
       .catch((e) => setError(`Could not read the keys from this device’s encrypted storage: ${(e as Error).message}`));
@@ -55,7 +55,7 @@ export default function CredentialsScreen({ navigation, route }: Props) {
         return;
       }
       setStatus('Saving to encrypted storage…');
-      await saveCredentials({ paypalClientId: clientId, paypalClientSecret: secret, anthropicApiKey: aiKey });
+      await saveCredentials({ paypalClientId: clientId, paypalClientSecret: secret, aiApiKey: aiKey });
       resetPayPalClient();
       if (editing) navigation.goBack();
       else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
@@ -103,9 +103,10 @@ export default function CredentialsScreen({ navigation, route }: Props) {
       </Card>
 
       <Card>
-        <Text style={[type.heading, { marginBottom: space.md }]}>AI provider</Text>
-        <Field label="Anthropic API key" value={aiKey} onChangeText={setAiKey} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="sk-ant-…" />
-        <Button title="Get an API key" variant="ghost" onPress={() => Linking.openURL('https://console.anthropic.com/settings/keys')} />
+        <Text style={[type.heading, { marginBottom: space.md }]}>AI provider · Google Gemini</Text>
+        <Field label="Gemini API key" value={aiKey} onChangeText={setAiKey} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder="AIza…"
+          hint="A free key from Google AI Studio works. On the free tier, Google may use what you send to improve its products." />
+        <Button title="Get a free Gemini API key" variant="ghost" onPress={() => Linking.openURL('https://aistudio.google.com/apikey')} />
       </Card>
 
       <Text style={[type.small, { color: colors.slate }]}>

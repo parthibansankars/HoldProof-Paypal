@@ -51,7 +51,7 @@ $$
 
 where $P_{\text{pass}}$ means the Proposer passed every criterion, $C_{\text{object}}$ means the Critic objected, $S_{\text{valid}}$ means both responses matched the schema, and $a$ is the amount. Disagreement, a timeout or a mismatch fails closed: no PayPal call, and the worker is asked to retake the photo.
 
-**Stack.** Android app in React Native 0.88 with Expo SDK 58 and TypeScript. PayPal Sandbox REST APIs called directly (Orders v2, Payments v2, Disputes v1). Claude (`claude-opus-5-5`) through the Anthropic TypeScript SDK with JSON-schema structured output, validated again with Zod. Expo Camera, Location, Crypto (SHA-256), Secure Store (Android Keystore), SQLite, Print (PDF) and Sharing; `react-native-qrcode-svg` for the approval QR code. Jest for the Judge, money, digest and PayPal client tests. Every dependency uses the MIT or Apache 2.0 licence.
+**Stack.** Android app in React Native 0.88 with Expo SDK 58 and TypeScript. PayPal Sandbox REST APIs called directly (Orders v2, Payments v2, Disputes v1). Google Gemini (`gemini-3.5-flash-lite`) through the Gemini API's REST `generateContent` endpoint with JSON-schema structured output, validated again with Zod. Expo Camera, Location, Crypto (SHA-256), Secure Store (Android Keystore), SQLite, Print (PDF) and Sharing; `react-native-qrcode-svg` for the approval QR code. Jest for the Judge, money, digest and PayPal client tests. Every dependency uses the MIT or Apache 2.0 licence.
 
 ## Challenges we faced
 

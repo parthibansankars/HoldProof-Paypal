@@ -7,8 +7,8 @@
 | Item | Value |
 |---|---|
 | File | `app-release.apk` |
-| Size | 66,495,363 bytes |
-| SHA-256 | `f5aff48742fcf0a12774728b44ee31ed8472ee08c169510485702c609a850270` |
+| Size | 65,722,239 bytes |
+| SHA-256 | `af992354c8d15b2361def0a4700ecb4af7129e48fd6ff32c09373328d5b8d20d` |
 | Package | `app.holdproof.sandbox` |
 | Target SDK | 36 (minimum SDK set by Expo SDK 58) |
 | Native ABIs | `arm64-v8a` (phones), `x86_64` (emulators) |
@@ -25,17 +25,18 @@ certutil -hashfile app-release.apk SHA256   # Windows
 ### Contents
 
 - Full HoldProof loop: scope → BEFORE photo and evidence digest → PayPal Sandbox authorization hold → AFTER photo checked by the Proposer and Critic → deterministic Judge → capture, capped partial refund or void → verify record, PDF/JSON export, dispute check and AI-drafted response.
+- AI agents run on the **Google Gemini API** (`gemini-3.5-flash-lite`); a free Gemini key from Google AI Studio works. The Anthropic SDK has been removed.
 - Complete, scrollable hackathon notice before any key can be entered (re-readable from the setup screen and Settings).
-- All fixes from the four-agent gap review (`docs/review/gap-review.md`): recovery of an authorization that was placed but not saved, terminal handling of denied, voided, expired and missing orders, location required for evidence photos, declined-capture recovery, 16,000-token AI responses, refund status refresh, keys cleared from memory on removal.
+- All fixes from the four-agent gap review (`docs/review/gap-review.md`): recovery of an authorization that was placed but not saved, terminal handling of denied, voided, expired and missing orders, location required for evidence photos, declined-capture recovery, 16,384-token AI responses, refund status refresh, keys cleared from memory on removal.
 
 ### Checks on this build
 
 | Check | Result |
 |---|---|
 | TypeScript typecheck | Passed |
-| Unit tests | 46 passed |
-| APK scanned for Anthropic keys and PayPal tokens | None found |
-| JavaScript bundle contains the reviewed setup notice | Confirmed |
+| Unit tests | 55 passed |
+| APK scanned for API keys and PayPal tokens | None found |
+| JavaScript bundle contains the reviewed setup notice and the Gemini endpoint (no Anthropic host) | Confirmed |
 | Run on a physical device with live sandbox keys | **Not run yet** — see `docs/QA_REPORT.md` |
 
 ### Build
