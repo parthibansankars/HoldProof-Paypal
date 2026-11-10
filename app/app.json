@@ -61,7 +61,8 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 160
         }
-      ]
+      ],
+      "./plugins/withShortCmakeObjectPaths"
     ]
   }
 }

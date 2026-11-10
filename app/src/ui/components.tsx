@@ -11,6 +11,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type { Notice } from '../config';
 import type { GuardCheck, JobStatus, LogEntry } from '../types';
 import { colors, radius, shadow, space, type } from './theme';
 
@@ -182,6 +183,27 @@ export function KeyValue({ k, v, mono }: { k: string; v: string; mono?: boolean 
     <View style={styles.kv}>
       <Text style={type.small}>{k}</Text>
       <Text style={[mono ? type.mono : type.body, { color: colors.ink, flexShrink: 1, textAlign: 'right' }]} selectable>{v}</Text>
+    </View>
+  );
+}
+
+/** Renders the structured setup notice (src/config.ts SETUP_NOTICE). Used by the setup popup and Settings. */
+export function NoticeContent({ notice }: { notice: Notice }) {
+  return (
+    <View>
+      <Text style={[type.body, { color: colors.ink, fontWeight: '600', marginBottom: space.md }]} accessibilityRole="alert">
+        {notice.lead}
+      </Text>
+      {notice.sections.map((s) => (
+        <View key={s.heading} style={{ marginBottom: space.md }}>
+          <Text style={[type.heading, { marginBottom: space.xs }]} accessibilityRole="header">{s.heading}</Text>
+          {s.lines.map((line, i) => (
+            <Text key={i} style={[type.small, { marginBottom: space.xs }]}>
+              {s.lines.length > 1 ? `• ${line}` : line}
+            </Text>
+          ))}
+        </View>
+      ))}
     </View>
   );
 }

@@ -7,11 +7,18 @@ import { critiqueVerdict, draftDisputeResponse, proposeVerdict } from '../ai/age
 import { buildCanonical, isHexDigest, shortDigest } from '../core/digest';
 import { decideCapture, decideRefund, decideVoid } from '../core/judge';
 import { fromCents, toCents } from '../core/money';
-import { PayPalClient, approvalLink, describePayPalError, type PayPalDispute } from '../paypal/client';
+import {
+  PayPalClient,
+  PayPalError,
+  approvalLink,
+  describePayPalError,
+  type PayPalAuthorization,
+  type PayPalDispute,
+} from '../paypal/client';
 import { loadCredentials } from '../storage/credentials';
 import { getJob, saveJob, updateJob, withLog } from '../storage/jobs';
 import { hashStoredPhoto, newId, readPhotoBase64, sha256 } from '../storage/photos';
-import type { Criterion, Job, JudgeDecision, PhotoEvidence, RefusedCriterion, VerdictAttempt } from '../types';
+import type { Criterion, Job, JudgeDecision, LogKind, PhotoEvidence, RefusedCriterion, VerdictAttempt } from '../types';
 
 let cached: { key: string; client: PayPalClient } | null = null;
 
@@ -27,6 +34,15 @@ export async function paypal(): Promise<PayPalClient> {
   if (!cached || cached.key !== key) cached = { key, client: new PayPalClient(creds.paypalClientId, creds.paypalClientSecret) };
   return cached.client;
 }
+
+/** Drops the cached PayPal client (client ID, secret and access token) from memory. Call after keys change or are removed. */
+export function resetPayPalClient(): void {
+  cached = null;
+}
+
+const isNotFound = (e: unknown) => e instanceof PayPalError && e.status === 404;
+const captureSucceeded = (status: string) => status === 'COMPLETED' || status === 'PENDING';
+const refundCounts = (status: string) => status !== 'FAILED' && status !== 'CANCELLED';
 
 async function aiKey(): Promise<string> {
   return (await requireCredentials()).anthropicApiKey;
@@ -94,6 +110,9 @@ export async function createHold(id: string): Promise<Job> {
   const job = await mustGet(id);
   if (job.orderId) return job;
   if (!job.digest || !isHexDigest(job.digest)) throw new Error('Evidence digest is missing.');
+  if (!job.before || job.before.lat === null || job.before.lng === null) {
+    throw new Error('The BEFORE photo has no location. Retake it with location enabled before asking the client to approve.');
+  }
   const client = await paypal();
   const order = await client.createAuthorizeOrder({
     referenceId: job.id,
@@ -113,41 +132,100 @@ export async function createHold(id: string): Promise<Job> {
   );
 }
 
+/** Marks a job that is still waiting for approval as CANCELLED, with a log entry. */
+function cancelWaiting(id: string, kind: LogKind, message: string): Promise<Job> {
+  return updateJob(id, (j) => (j.status === 'AWAITING_APPROVAL' ? withLog({ ...j, status: 'CANCELLED' }, kind, message) : j));
+}
+
+/**
+ * Persists an authorization read back from PayPal. CREATED or PENDING means money is held (HELD);
+ * DENIED, VOIDED or EXPIRED means nothing is held (CANCELLED). A job never stays AWAITING_APPROVAL
+ * with an authorization stored.
+ */
+async function adoptAuthorization(id: string, orderStatus: string, readBack: PayPalAuthorization, fallbackExpiry?: string): Promise<Job> {
+  const base = (j: Job): Job => ({
+    ...j,
+    authorizationId: readBack.id,
+    authorizedAt: j.authorizedAt ?? new Date().toISOString(),
+    authorizationExpiresAt: readBack.expiration_time ?? fallbackExpiry ?? null,
+    paypalStatus: { ...j.paypalStatus, order: orderStatus, authorization: readBack.status },
+  });
+  if (readBack.status === 'DENIED' || readBack.status === 'VOIDED' || readBack.status === 'EXPIRED') {
+    return updateJob(id, (j) =>
+      j.status === 'AWAITING_APPROVAL'
+        ? withLog({ ...base(j), status: 'CANCELLED' }, 'paypal', `Authorization ${readBack.id} is ${readBack.status}; no money is held.`)
+        : j,
+    );
+  }
+  // CREATED or PENDING: the hold is in place. CAPTURED / PARTIALLY_CAPTURED can only come from this app; they are
+  // treated as HELD so that refreshFromPayPal can adopt the capture instead of leaving the job waiting.
+  return updateJob(id, (j) =>
+    j.status === 'AWAITING_APPROVAL'
+      ? withLog({ ...base(j), status: 'HELD' }, 'paypal',
+        `Authorization ${readBack.id} placed: ${readBack.amount.value} ${readBack.amount.currency_code} held (status ${readBack.status}).`)
+      : j,
+  );
+}
+
 /** Polls the order; once the client has approved, places the authorization hold. */
 export async function syncHold(id: string): Promise<Job> {
   const job = await mustGet(id);
   if (!job.orderId || job.status !== 'AWAITING_APPROVAL') return job;
+  const orderId = job.orderId;
   const client = await paypal();
-  const order = await client.getOrder(job.orderId);
-  if (order.status !== job.paypalStatus.order) {
-    await updateJob(id, (j) => withLog({ ...j, paypalStatus: { ...j.paypalStatus, order: order.status } }, 'paypal', `Order status ${order.status}.`));
+  let order;
+  try {
+    order = await client.getOrder(orderId);
+  } catch (e) {
+    if (isNotFound(e)) {
+      return cancelWaiting(id, 'paypal', `PayPal no longer has order ${orderId} (expired or removed). No money was held. Start a new job to ask again.`);
+    }
+    throw e;
   }
-  if (order.status !== 'APPROVED') return mustGet(id);
+  const orderStatus = order.status;
+  if (orderStatus !== job.paypalStatus.order) {
+    await updateJob(id, (j) => withLog({ ...j, paypalStatus: { ...j.paypalStatus, order: orderStatus } }, 'paypal', `Order status ${orderStatus}.`));
+  }
 
-  const authorized = await client.authorizeOrder(job.orderId, `hp-auth-${job.id}`);
+  if (orderStatus === 'VOIDED') {
+    return cancelWaiting(id, 'paypal', `Order ${orderId} was voided by PayPal. No money was held.`);
+  }
+
+  if (orderStatus === 'COMPLETED') {
+    // Authorized earlier but not saved (for example the app stopped between authorize and saving): adopt it.
+    const existing = order.purchase_units?.[0]?.payments?.authorizations?.[0];
+    if (!existing) throw new Error('PayPal reports the order as completed but returned no authorization.');
+    const readBack = await client.getAuthorization(existing.id);
+    return adoptAuthorization(id, orderStatus, readBack, existing.expiration_time);
+  }
+
+  if (orderStatus !== 'APPROVED') return mustGet(id);
+
+  const authorized = await client.authorizeOrder(orderId, `hp-auth-${job.id}`);
   const auth = authorized.purchase_units?.[0]?.payments?.authorizations?.[0];
   if (!auth) throw new Error('PayPal did not return an authorization.');
   const readBack = await client.getAuthorization(auth.id);
-  return updateJob(id, (j) =>
-    withLog(
-      {
-        ...j,
-        authorizationId: readBack.id,
-        authorizedAt: new Date().toISOString(),
-        authorizationExpiresAt: readBack.expiration_time ?? auth.expiration_time ?? null,
-        status: readBack.status === 'CREATED' || readBack.status === 'PENDING' ? 'HELD' : j.status,
-        paypalStatus: { ...j.paypalStatus, order: authorized.status, authorization: readBack.status },
-      },
-      'paypal',
-      `Authorization ${readBack.id} placed: ${readBack.amount.value} ${readBack.amount.currency_code} held (status ${readBack.status}).`,
-    ),
-  );
+  return adoptAuthorization(id, authorized.status, readBack, auth.expiration_time);
 }
 
+/**
+ * Cancels a job whose order the client has not approved. Checks PayPal first, so an approval that
+ * already happened is never abandoned with a live hold.
+ */
 export async function cancelUnapproved(id: string): Promise<Job> {
-  return updateJob(id, (j) =>
-    j.status === 'AWAITING_APPROVAL' ? withLog({ ...j, status: 'CANCELLED' }, 'user', 'Job cancelled before the client approved the hold.') : j,
-  );
+  const job = await mustGet(id);
+  if (job.status !== 'AWAITING_APPROVAL') return job;
+  if (job.orderId) {
+    let synced: Job | null = null;
+    try {
+      synced = await syncHold(id);
+    } catch (e) {
+      if (!isNotFound(e)) throw e; // never cancel blind
+    }
+    if (synced?.status === 'HELD') throw new Error('The client has already approved. The hold is active; open the job to void it.');
+    if (synced && synced.status !== 'AWAITING_APPROVAL') return synced;
+  }
+  return cancelWaiting(id, 'user', 'Job cancelled before the client approved the hold.');
 }
 
 // ── Prove ────────────────────────────────────────────────────────────────────
@@ -226,20 +304,72 @@ export async function executeCapture(id: string, attemptId: string): Promise<Job
   if (!decision.allowed) throw new Error('The Judge no longer permits this capture.');
 
   const client = await paypal();
-  const capture = await client.captureAuthorization(job.authorizationId!, job.amount, job.currency, `HP-${job.id.slice(0, 18)}`, `hp-capture-${job.id}`);
-  const readBack = await client.getCapture(capture.id);
+  let captureId: string;
+  try {
+    // The attempt id is part of the idempotency key, so a new verdict after a failed capture is a new request.
+    const capture = await client.captureAuthorization(job.authorizationId!, job.amount, job.currency, `HP-${job.id.slice(0, 18)}`,
+      `hp-capture-${job.id}-${attemptId}`);
+    captureId = capture.id;
+  } catch (e) {
+    if (e instanceof PayPalError && e.issue === 'AUTHORIZATION_ALREADY_CAPTURED') return adoptExistingCapture(id, attemptId);
+    throw e;
+  }
+  const readBack = await client.getCapture(captureId);
+  const authBack = await client.getAuthorization(job.authorizationId!);
+  if (!captureSucceeded(readBack.status)) {
+    return updateJob(id, (j) =>
+      withLog({ ...j, paypalStatus: { ...j.paypalStatus, capture: readBack.status, authorization: authBack.status } },
+        'error', `Capture ${readBack.id} returned ${readBack.status}; no money moved. The hold is unchanged.`),
+    );
+  }
   return updateJob(id, (j) =>
     withLog(
       {
         ...j,
         captureId: readBack.id,
         capturedAt: new Date().toISOString(),
-        status: readBack.status === 'COMPLETED' || readBack.status === 'PENDING' ? 'CAPTURED' : j.status,
-        paypalStatus: { ...j.paypalStatus, capture: readBack.status, authorization: 'CAPTURED' },
+        status: 'CAPTURED',
+        paypalStatus: { ...j.paypalStatus, capture: readBack.status, authorization: authBack.status },
         attempts: j.attempts.map((a) => (a.id === attemptId ? { ...a, executed: true } : a)),
       },
       'paypal',
       `Capture ${readBack.id} confirmed by PayPal: status ${readBack.status}${readBack.amount ? `, ${readBack.amount.value} ${readBack.amount.currency_code}` : ''}.`,
+    ),
+  );
+}
+
+/**
+ * The authorization is already captured at PayPal but the job has no capture stored (for example the app
+ * stopped after the capture call). Finds the capture on the order, reads it back, and records it.
+ */
+async function adoptExistingCapture(id: string, attemptId: string | null): Promise<Job> {
+  const job = await mustGet(id);
+  if (!job.orderId || !job.authorizationId) throw new Error('This job has no PayPal hold.');
+  const authorizationId = job.authorizationId;
+  const client = await paypal();
+  const order = await client.getOrder(job.orderId);
+  const found = order.purchase_units?.[0]?.payments?.captures?.[0];
+  if (!found) throw new Error('PayPal reports the hold as captured, but no capture was found on the order.');
+  const readBack = await client.getCapture(found.id);
+  const authBack = await client.getAuthorization(authorizationId);
+  if (!captureSucceeded(readBack.status)) {
+    return updateJob(id, (j) =>
+      withLog({ ...j, paypalStatus: { ...j.paypalStatus, capture: readBack.status, authorization: authBack.status } },
+        'error', `Capture ${readBack.id} found at PayPal with status ${readBack.status}; no money moved.`),
+    );
+  }
+  return updateJob(id, (j) =>
+    withLog(
+      {
+        ...j,
+        captureId: readBack.id,
+        capturedAt: j.capturedAt ?? new Date().toISOString(),
+        status: 'CAPTURED',
+        paypalStatus: { ...j.paypalStatus, order: order.status, capture: readBack.status, authorization: authBack.status },
+        attempts: attemptId ? j.attempts.map((a) => (a.id === attemptId ? { ...a, executed: true } : a)) : j.attempts,
+      },
+      'paypal',
+      `Capture ${readBack.id} found at PayPal and recorded: status ${readBack.status}.`,
     ),
   );
 }
@@ -251,7 +381,7 @@ export function refundDecision(job: Job, criterionId: string, amount: string): J
     amount: job.amount,
     criteriaIds: job.criteria.map((c) => c.id),
     criterionId,
-    alreadyRefunded: job.refunds.map((r) => ({ criterionId: r.criterionId, amount: r.amount })),
+    alreadyRefunded: job.refunds.map((r) => ({ criterionId: r.criterionId, amount: r.amount, status: r.status })),
     requested: amount,
   });
 }
@@ -261,9 +391,12 @@ export async function executeRefund(id: string, criterionId: string, amount: str
   const decision = refundDecision(job, criterionId, amount);
   if (!decision.allowed) throw new Error(`Refund refused: ${decision.checks.filter((c) => !c.ok).map((c) => c.label).join('; ')}`);
   const criterion = job.criteria.find((c) => c.id === criterionId)!;
+  // Same request id for a plain retry (idempotent); a new suffix only after an earlier refund failed or was cancelled.
+  const failedBefore = job.refunds.filter((r) => r.criterionId === criterionId && !refundCounts(r.status)).length;
+  const requestId = `hp-refund-${job.id}-${criterionId}${failedBefore > 0 ? `-r${failedBefore}` : ''}`;
   const client = await paypal();
   const refund = await client.refundCapture(job.captureId!, fromCents(toCents(amount)), job.currency,
-    `Partial refund: "${criterion.text}" was contested on site.`, `hp-refund-${job.id}-${criterionId}`);
+    `Partial refund: "${criterion.text}" was contested on site.`, requestId);
   const readBack = await client.getRefund(refund.id);
   const capture = await client.getCapture(job.captureId!);
   return updateJob(id, (j) =>
@@ -298,11 +431,34 @@ export async function refreshFromPayPal(id: string): Promise<Job> {
   if (job.status === 'AWAITING_APPROVAL') return syncHold(id);
   const client = await paypal();
   const status = { ...job.paypalStatus };
+  const notes: string[] = [];
   if (job.authorizationId) status.authorization = (await client.getAuthorization(job.authorizationId)).status;
+
+  if (job.status === 'HELD' && !job.captureId && (status.authorization === 'CAPTURED' || status.authorization === 'PARTIALLY_CAPTURED')) {
+    return adoptExistingCapture(id, null);
+  }
+
   if (job.captureId) status.capture = (await client.getCapture(job.captureId)).status;
+
+  const refunds = await Promise.all(
+    job.refunds.map(async (r) => {
+      const fresh = (await client.getRefund(r.id)).status;
+      if (fresh !== r.status) notes.push(`Refund ${r.id} is now ${fresh}.`);
+      return { ...r, status: fresh };
+    }),
+  );
+
   let next: Job['status'] = job.status;
-  if (status.authorization === 'VOIDED' || status.authorization === 'EXPIRED') next = job.captureId ? job.status : 'VOIDED';
-  return updateJob(id, (j) => ({ ...j, paypalStatus: status, status: next }));
+  // An EXPIRED hold is shown as VOIDED locally (money is back with the client); the log names the real status.
+  if (job.status === 'HELD' && !job.captureId && (status.authorization === 'VOIDED' || status.authorization === 'EXPIRED')) next = 'VOIDED';
+  if (status.authorization && status.authorization !== job.paypalStatus.authorization) {
+    notes.push(`PayPal reports authorization ${job.authorizationId} as ${status.authorization}.`);
+  }
+  return updateJob(id, (j) => {
+    let out: Job = { ...j, paypalStatus: status, status: next, refunds: j.refunds.map((r) => refunds.find((x) => x.id === r.id) ?? r) };
+    for (const n of notes) out = withLog(out, 'paypal', n);
+    return out;
+  });
 }
 
 // ── Defend ───────────────────────────────────────────────────────────────────
@@ -348,6 +504,7 @@ export function buildRecord(job: Job): Record<string, unknown> {
     refused_criteria: job.refused,
     evidence_digest: job.digest,
     canonical_record: job.canonical,
+    photo_hash_method: 'SHA-256 over the base64 encoding of the stored JPEG file',
     before_photo: job.before,
     after_photo: passed?.after ?? null,
     paypal: {

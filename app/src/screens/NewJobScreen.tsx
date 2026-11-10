@@ -30,17 +30,21 @@ export default function NewJobScreen({ navigation }: Props) {
     setError(null);
     setScope(null);
     setRemoved(new Set());
-    const creds = await loadCredentials();
-    if (!creds) {
+    try {
+      const creds = await loadCredentials();
+      if (!creds) {
+        setError('Add your sandbox keys in Settings first.');
+        return;
+      }
+      const result = await scopeJob(creds.anthropicApiKey, description.trim(), amount);
+      if (!result.ok) setError(result.error);
+      else if (result.value.criteria.length === 0) setError('No photo-checkable criteria could be found. Describe a visible end result.');
+      else setScope(result.value);
+    } catch (e) {
+      setError((e as Error)?.message ?? 'Could not scope the job.');
+    } finally {
       setBusy(false);
-      setError('Add your sandbox keys in Settings first.');
-      return;
     }
-    const result = await scopeJob(creds.anthropicApiKey, description.trim(), amount);
-    setBusy(false);
-    if (!result.ok) setError(result.error);
-    else if (result.value.criteria.length === 0) setError('No photo-checkable criteria could be found. Describe a visible end result.');
-    else setScope(result.value);
   }
 
   async function onContinue() {

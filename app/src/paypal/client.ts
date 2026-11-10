@@ -29,6 +29,7 @@ export interface PayPalOrder {
     amount?: { currency_code: string; value: string };
     payments?: {
       authorizations?: Array<{ id: string; status: string; expiration_time?: string; amount?: { value: string; currency_code: string } }>;
+      captures?: Array<{ id: string; status: string; amount?: { value: string; currency_code: string } }>;
     };
   }>;
 }

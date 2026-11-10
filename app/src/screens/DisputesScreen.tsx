@@ -37,17 +37,22 @@ export default function DisputesScreen({ route }: Props) {
   async function onDraft(d: PayPalDispute) {
     setBusy(d.dispute_id);
     setError(null);
-    const result = await draftDispute(jobId, d);
-    setBusy(null);
-    if (!result.ok) setError(result.error);
-    else setDraft({ id: d.dispute_id, ...result.value });
+    try {
+      const result = await draftDispute(jobId, d);
+      if (!result.ok) setError(result.error);
+      else setDraft({ id: d.dispute_id, ...result.value });
+    } catch (e) {
+      setError(describePayPalError(e));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
     <Screen footer={<Button title="Check PayPal again" variant="secondary" onPress={load} loading={busy === 'load'} />}>
       <Text style={type.title}>PayPal disputes</Text>
       <Text style={[type.body, { marginTop: space.xs, marginBottom: space.lg }]}>
-        HoldProof polls the PayPal Disputes API for this capture. If a dispute exists, the Proposer drafts a response from the evidence record and the Critic removes anything the record does not support. You decide whether to send it; PayPal decides the outcome.
+        HoldProof checks the PayPal Disputes API for this capture when you open this screen or press Check PayPal again. If a dispute exists, the Proposer drafts a response from the evidence record and the Critic removes anything the record does not support. HoldProof does not submit it: copy the draft and submit it yourself in the PayPal Resolution Center. PayPal decides the outcome.
       </Text>
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
       {disputes === null && busy === 'load' ? <ActivityIndicator color={colors.ink} /> : null}

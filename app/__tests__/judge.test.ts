@@ -120,6 +120,25 @@ describe('decideRefund', () => {
     expect(decideRefund({ ...base, alreadyRefunded: [{ criterionId: 'c2', amount: '5.00' }] }).allowed).toBe(false);
   });
 
+  it('ignores a FAILED or CANCELLED refund: it does not block a retry or reduce the remaining amount', () => {
+    for (const status of ['FAILED', 'CANCELLED']) {
+      const d = decideRefund({ ...base, alreadyRefunded: [{ criterionId: 'c2', amount: '20.00', status }] });
+      expect(d.allowed).toBe(true);
+      expect(d.checks.find((c) => c.id === 'remaining')!.detail).toBe('Remaining 60.00');
+    }
+  });
+
+  it('counts a PENDING or COMPLETED refund: it blocks a repeat and reduces the remaining amount', () => {
+    for (const status of ['PENDING', 'COMPLETED']) {
+      const repeat = decideRefund({ ...base, alreadyRefunded: [{ criterionId: 'c2', amount: '20.00', status }] });
+      expect(repeat.allowed).toBe(false);
+      expect(repeat.checks.find((c) => c.id === 'once')!.ok).toBe(false);
+      const other = decideRefund({ ...base, alreadyRefunded: [{ criterionId: 'c1', amount: '20.00', status }] });
+      expect(other.allowed).toBe(true);
+      expect(other.checks.find((c) => c.id === 'remaining')!.detail).toBe('Remaining 40.00');
+    }
+  });
+
   it('refuses unknown criteria, zero amounts and uncaptured jobs', () => {
     expect(decideRefund({ ...base, criterionId: 'c9' }).allowed).toBe(false);
     expect(decideRefund({ ...base, requested: '0.00' }).allowed).toBe(false);

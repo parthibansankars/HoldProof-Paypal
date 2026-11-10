@@ -51,7 +51,7 @@ export default function VerifyScreen({ route }: Props) {
             </Text>
           </Card>
           <Card>
-            <CheckRow check={{ id: 'photo', label: 'BEFORE photo hash matches', ok: result.beforePhotoHashMatches, detail: 'SHA-256 of the stored photo file' }} />
+            <CheckRow check={{ id: 'photo', label: 'BEFORE photo hash matches', ok: result.beforePhotoHashMatches, detail: 'SHA-256 of the base64 text of the stored JPEG' }} />
             <CheckRow check={{ id: 'local', label: 'Recomputed digest matches the saved digest', ok: result.digestMatchesRecord, detail: shortDigest(result.digestRecomputed) }} />
             <CheckRow check={{ id: 'paypal', label: 'Digest matches custom_id in PayPal', ok: result.digestMatchesPayPal, detail: result.customIdFromPayPal ? shortDigest(result.customIdFromPayPal) : 'No custom_id on the order' }} />
           </Card>

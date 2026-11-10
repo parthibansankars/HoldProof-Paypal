@@ -94,8 +94,14 @@ export interface RefundInput {
   amount: string;
   criteriaIds: string[];
   criterionId: string;
-  alreadyRefunded: { criterionId: string; amount: string }[];
+  /** Refunds recorded so far. Entries with status FAILED or CANCELLED moved no money and are ignored. */
+  alreadyRefunded: { criterionId: string; amount: string; status?: string }[];
   requested: string;
+}
+
+/** A refund that PayPal reports as FAILED or CANCELLED moved no money. */
+function refundMovedMoney(r: { status?: string }): boolean {
+  return r.status !== 'FAILED' && r.status !== 'CANCELLED';
 }
 
 /** Cap for one contested criterion: an equal share of the job amount. */
@@ -110,7 +116,8 @@ export function decideRefund(input: RefundInput): JudgeDecision {
     input.captureId ? `Capture ${input.captureId}` : `Job status is ${input.status}`));
   checks.push(check('criterion', 'Contested criterion is part of the agreement', input.criteriaIds.includes(input.criterionId),
     input.criterionId));
-  const repeat = input.alreadyRefunded.some((r) => r.criterionId === input.criterionId);
+  const effective = input.alreadyRefunded.filter(refundMovedMoney);
+  const repeat = effective.some((r) => r.criterionId === input.criterionId);
   checks.push(check('once', 'Criterion has not been refunded before', !repeat, repeat ? 'Already refunded' : 'First refund for this criterion'));
 
   let requestedCents = -1;
@@ -119,7 +126,7 @@ export function decideRefund(input: RefundInput): JudgeDecision {
   checks.push(check('cap', 'Refund is within the per-criterion cap', requestedCents > 0 && requestedCents <= cap,
     `Requested ${input.requested}, cap ${(cap / 100).toFixed(2)}`));
 
-  const refundedCents = input.alreadyRefunded.reduce((s, r) => s + toCents(r.amount), 0);
+  const refundedCents = effective.reduce((s, r) => s + toCents(r.amount), 0);
   const remaining = toCents(input.amount) - refundedCents;
   checks.push(check('remaining', 'Refund does not exceed the remaining captured amount', requestedCents > 0 && requestedCents <= remaining,
     `Remaining ${(remaining / 100).toFixed(2)}`));

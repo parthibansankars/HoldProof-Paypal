@@ -25,4 +25,4 @@ HoldProof uses three roles at runtime. Two are AI model calls; the third is dete
 
 ## Dispute drafting
 
-The Proposer drafts a response using only the evidence record. The Critic then removes statements the record does not support. The worker sees what was removed, copies the draft and decides whether to send it. PayPal decides the dispute.
+The Proposer drafts a response using only the evidence record. The Critic then removes statements the record does not support. The worker sees what was removed, copies the draft and, if they choose, submits it in the PayPal Resolution Center; HoldProof never submits it. PayPal decides the dispute.

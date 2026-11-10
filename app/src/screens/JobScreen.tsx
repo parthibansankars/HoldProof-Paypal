@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, Text, View } from 'react-native';
-import { refundCapCents } from '../core/judge';
+import { AUTHORIZATION_HONOR_DAYS, refundCapCents } from '../core/judge';
 import { formatMoney, fromCents } from '../core/money';
 import { useJob } from '../hooks/useJob';
 import type { RootStackParamList } from '../navigation/types';
@@ -67,6 +67,9 @@ export default function JobScreen({ navigation, route }: Props) {
   }
 
   const lastAttempt = job.attempts[job.attempts.length - 1];
+  const heldPastHonor =
+    job.status === 'HELD' && !!job.authorizedAt &&
+    Date.now() - new Date(job.authorizedAt).getTime() > AUTHORIZATION_HONOR_DAYS * 24 * 60 * 60 * 1000;
 
   return (
     <Screen
@@ -87,9 +90,20 @@ export default function JobScreen({ navigation, route }: Props) {
       <Text style={[type.small, { marginBottom: space.lg }]}>
         {job.status === 'HELD' ? 'Held in the client’s PayPal account. Released only when the Judge permits it.'
           : job.status === 'CAPTURED' ? 'Released to you after a passing verdict.'
-          : job.status === 'VOIDED' ? 'The hold was voided and released to the client.' : ''}
+          : job.status === 'VOIDED'
+            ? job.paypalStatus.authorization === 'EXPIRED'
+              ? 'The hold expired at PayPal and was released to the client.'
+              : 'The hold was voided and released to the client.'
+          : job.status === 'CANCELLED' ? 'This job was cancelled. No money was held.' : ''}
       </Text>
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
+      {heldPastHonor ? (
+        <Card tone="amber">
+          <Text style={type.body}>
+            This hold is more than {AUTHORIZATION_HONOR_DAYS} days old. PayPal guarantees the funds only during the honor period; capture may be declined after it.
+          </Text>
+        </Card>
+      ) : null}
 
       <SectionTitle right={<Button title={busy === 'Refresh' ? '…' : 'Refresh'} variant="ghost" onPress={() => run('Refresh', () => refreshFromPayPal(jobId))} />}>
         PayPal Sandbox (read back)

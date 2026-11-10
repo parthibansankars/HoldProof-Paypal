@@ -29,8 +29,9 @@ function makeClient(apiKey: string): Anthropic {
     // React Native is not a browser, but the SDK's environment check can misdetect it.
     // The key is user-entered and stored in the device keystore (sandbox hackathon build).
     dangerouslyAllowBrowser: true,
-    timeout: 120_000,
-    maxRetries: 2,
+    // 180 s per attempt and one retry keep the worst-case wait bounded (about six minutes).
+    timeout: 180_000,
+    maxRetries: 1,
   });
 }
 
@@ -59,7 +60,8 @@ async function callStructured<T>(
 
     const response = await client.beta.messages.create({
       model: AI_MODEL,
-      max_tokens: opts.maxTokens ?? 8000,
+      // Thinking tokens count against max_tokens on this model; leave room for the JSON answer after reasoning.
+      max_tokens: opts.maxTokens ?? 16000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       system: opts.system,
@@ -71,7 +73,7 @@ async function callStructured<T>(
       return { ok: false, error: 'The AI model declined this request.' };
     }
     if (response.stop_reason === 'max_tokens') {
-      return { ok: false, error: 'The AI response was cut off before it finished.' };
+      return { ok: false, error: 'The AI response was cut off before it finished. No money moved. Try again; for a photo check, capture the AFTER photo again.' };
     }
     const text = response.content
       .map((b) => (b.type === 'text' ? b.text : ''))

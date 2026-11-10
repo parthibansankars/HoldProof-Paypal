@@ -6,7 +6,7 @@ Status legend: **Passed** (run and verified) · **Not run** (not yet executed) �
 
 | Area | Result | Evidence |
 |---|---|---|
-| Unit tests (Jest, 29 tests) | Passed | `cd app && npm test` — Judge capture, refund and void guards; money parsing; digest determinism and tamper sensitivity; PayPal client request shape, idempotency header, token reuse, 204 handling, error mapping |
+| Unit tests (Jest, 46 tests) | Passed | `cd app && npx jest` — Judge capture, refund (including FAILED/CANCELLED refunds being ignored) and void guards; money parsing; digest determinism and tamper sensitivity; PayPal client request shape, idempotency header, token reuse, 204 handling, error mapping; service money paths with mocked storage and PayPal client (adopting a COMPLETED order's authorization, DENIED/VOIDED/404 to CANCELLED, cancel refused after approval, declined capture leaves the hold, already-captured adoption, EXPIRED shown as VOIDED, refund status refresh, PayPal client cache reset) |
 | TypeScript strict typecheck | Passed | `npm run typecheck` |
 | Android JavaScript bundle (Metro, Hermes bytecode) | Passed | `npx expo export --platform android` bundled 1,688 modules |
 | Release APK build | See PROJECT_STATUS.md | `./gradlew assembleRelease` |
@@ -17,7 +17,9 @@ Judge cases covered by tests include: a PASS verdict with a mismatched amount is
 
 | Scenario | Result |
 |---|---|
-| First launch shows the hackathon popup before keys can be entered | Not run |
+| First launch shows the hackathon popup before keys can be entered; it scrolls on a small or large-font screen, the back button does not dismiss it, and it can be reopened from the setup screen and read in Settings | Not run |
+| Location denied or unavailable: the camera refuses to record the photo and offers app settings when permission is blocked | Not run |
+| PayPal Sandbox accepts the `holdproof://` return and cancel URLs at order creation | Not run |
 | Invalid PayPal or AI keys are rejected with a clear message | Not run |
 | Scope → BEFORE → order → approval by sandbox buyer → HELD | Not run |
 | Passing AFTER photo → Judge permits → capture → read-back COMPLETED | Not run |
@@ -25,8 +27,8 @@ Judge cases covered by tests include: a PASS verdict with a mismatched amount is
 | Void an active hold | Not run |
 | Capped partial refund; over-cap refund refused | Not run |
 | Verify record matches `custom_id`; PDF and JSON export | Not run |
-| Dispute polling (no disputes; sandbox dispute if created) | Not run |
-| Network loss during polling shows an error and recovers | Not run |
+| Dispute check on demand (no disputes; sandbox dispute if created); draft copied, not submitted | Not run |
+| Network loss during polling shows an error and recovers; polling stops after five consecutive errors and resumes with Check again | Not run |
 | App restart keeps jobs and resumes polling on the Hold screen | Not run |
 
 **Blocked on this build machine:** the Android emulator cannot start because CPU virtualization is disabled in firmware, and no device was connected. Manual scenarios need a physical Android phone and live sandbox credentials. This report will be updated with results; nothing above is claimed as passed until it has been run.

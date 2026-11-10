@@ -1,12 +1,13 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Linking, Modal, Text, View } from 'react-native';
+import { Linking, Modal, ScrollView, Text, View } from 'react-native';
 import { testAiKey } from '../ai/agents';
-import { HACKATHON_NOTICE, PAYPAL_ENVIRONMENT_LABEL } from '../config';
+import { PAYPAL_ENVIRONMENT_LABEL, SETUP_NOTICE } from '../config';
 import type { RootStackParamList } from '../navigation/types';
 import { PayPalClient, describePayPalError } from '../paypal/client';
+import { resetPayPalClient } from '../services/holdproof';
 import { loadCredentials, saveCredentials } from '../storage/credentials';
-import { Button, Card, ErrorBanner, Field, SandboxBadge, Screen } from '../ui/components';
+import { Button, Card, ErrorBanner, Field, NoticeContent, SandboxBadge, Screen } from '../ui/components';
 import { colors, space, type } from '../ui/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Credentials'>;
@@ -23,13 +24,15 @@ export default function CredentialsScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (!editing) return;
-    loadCredentials().then((c) => {
-      if (c) {
-        setClientId(c.paypalClientId);
-        setSecret(c.paypalClientSecret);
-        setAiKey(c.anthropicApiKey);
-      }
-    });
+    loadCredentials()
+      .then((c) => {
+        if (c) {
+          setClientId(c.paypalClientId);
+          setSecret(c.paypalClientSecret);
+          setAiKey(c.anthropicApiKey);
+        }
+      })
+      .catch((e) => setError(`Could not read the keys from this device’s encrypted storage: ${(e as Error).message}`));
   }, [editing]);
 
   const canSave = clientId.trim().length > 10 && secret.trim().length > 10 && aiKey.trim().length > 10;
@@ -37,43 +40,46 @@ export default function CredentialsScreen({ navigation, route }: Props) {
   async function onSave() {
     setBusy(true);
     setError(null);
-    setStatus('Checking PayPal Sandbox credentials…');
     try {
-      await new PayPalClient(clientId.trim(), secret.trim()).getAccessToken();
+      setStatus('Checking PayPal Sandbox credentials…');
+      try {
+        await new PayPalClient(clientId.trim(), secret.trim()).getAccessToken();
+      } catch (e) {
+        setError(`PayPal Sandbox: ${describePayPalError(e)}`);
+        return;
+      }
+      setStatus('Checking the AI key…');
+      const ai = await testAiKey(aiKey.trim());
+      if (!ai.ok) {
+        setError(`AI provider: ${ai.error}`);
+        return;
+      }
+      setStatus('Saving to encrypted storage…');
+      await saveCredentials({ paypalClientId: clientId, paypalClientSecret: secret, anthropicApiKey: aiKey });
+      resetPayPalClient();
+      if (editing) navigation.goBack();
+      else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
     } catch (e) {
+      setError(`Could not store the keys in this device’s encrypted storage: ${(e as Error)?.message ?? 'unknown error'}`);
+    } finally {
       setBusy(false);
       setStatus(null);
-      setError(`PayPal Sandbox: ${describePayPalError(e)}`);
-      return;
     }
-    setStatus('Checking the AI key…');
-    const ai = await testAiKey(aiKey.trim());
-    if (!ai.ok) {
-      setBusy(false);
-      setStatus(null);
-      setError(`AI provider: ${ai.error}`);
-      return;
-    }
-    await saveCredentials({ paypalClientId: clientId, paypalClientSecret: secret, anthropicApiKey: aiKey });
-    setBusy(false);
-    setStatus(null);
-    if (editing) navigation.goBack();
-    else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   }
 
   return (
     <Screen
       footer={<Button title={busy ? status ?? 'Saving…' : 'Verify and save securely'} onPress={onSave} disabled={!canSave || !acknowledged} loading={busy} />}
     >
+      {/* Blocking notice: the back button cannot dismiss it; only the acknowledgement button closes it. */}
       <Modal visible={!acknowledged} transparent animationType="fade" onRequestClose={() => undefined}>
         <View style={{ flex: 1, backgroundColor: 'rgba(14,26,43,0.6)', justifyContent: 'center', padding: space.lg }}>
-          <Card>
-            <Text style={[type.title, { marginBottom: space.md }]}>Hackathon demonstration only</Text>
-            <Text style={[type.body, { marginBottom: space.lg }]} accessibilityRole="alert">{HACKATHON_NOTICE}</Text>
-            <Text style={[type.small, { marginBottom: space.lg }]}>
-              In a production release, these keys would never be on the phone: the app would call HoldProof’s own backend,
-              which holds the secrets and calls PayPal.
-            </Text>
+          <Card style={{ maxHeight: '90%' }}>
+            <Text style={[type.title, { marginBottom: space.md }]} accessibilityRole="header">{SETUP_NOTICE.title}</Text>
+            <ScrollView style={{ flexGrow: 0, flexShrink: 1 }} showsVerticalScrollIndicator persistentScrollbar>
+              <NoticeContent notice={SETUP_NOTICE} />
+            </ScrollView>
+            <Text style={[type.small, { textAlign: 'center', marginVertical: space.sm }]}>Scroll to read the full notice</Text>
             <Button title="I understand — use sandbox keys only" onPress={() => setAcknowledged(true)} />
           </Card>
         </View>
@@ -81,10 +87,11 @@ export default function CredentialsScreen({ navigation, route }: Props) {
 
       <SandboxBadge />
       <Text style={[type.display, { marginTop: space.md }]}>{editing ? 'Sandbox keys' : 'Welcome to HoldProof'}</Text>
-      <Text style={[type.body, { marginTop: space.sm, marginBottom: space.xl }]}>
+      <Text style={[type.body, { marginTop: space.sm, marginBottom: space.md }]}>
         A PayPal hold your client approves before you start, released only when AI confirms the agreed work in your
         before-and-after photos. Enter your {PAYPAL_ENVIRONMENT_LABEL} app credentials and an AI key to begin.
       </Text>
+      <Button title="Read the hackathon notice again" variant="ghost" onPress={() => setAcknowledged(false)} />
 
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
@@ -103,7 +110,7 @@ export default function CredentialsScreen({ navigation, route }: Props) {
 
       <Text style={[type.small, { color: colors.slate }]}>
         Keys are stored only in this device’s encrypted storage (Android Keystore). They are never included in the app
-        package, logs or source code. You can remove them in Settings at any time.
+        package, source code, logs or exports. You can remove them in Settings or by uninstalling the app.
       </Text>
     </Screen>
   );

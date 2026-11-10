@@ -38,9 +38,9 @@ export async function exportPdf(job: Job): Promise<void> {
   <tr><td>Last PayPal status</td><td>${esc(JSON.stringify(job.paypalStatus))}</td></tr></table>
   <h2>Agreed criteria</h2><ol>${job.criteria.map((c) => `<li>${esc(c.text)}</li>`).join('')}</ol>
   <h2>Photos</h2><div class="grid"><div><b>BEFORE</b> ${job.before ? esc(job.before.capturedAt) : ''}${await img(job.before?.fileName)}
-  <p class="mono">sha256 ${job.before?.sha256 ?? ''}</p></div>
+  <p class="mono">sha256 (of the base64 text of the JPEG) ${job.before?.sha256 ?? ''}</p></div>
   <div><b>AFTER</b> ${passed ? esc(passed.after.capturedAt) : ''}${await img(passed?.after.fileName)}
-  <p class="mono">sha256 ${passed?.after.sha256 ?? ''}</p></div></div>
+  <p class="mono">sha256 (of the base64 text of the JPEG) ${passed?.after.sha256 ?? ''}</p></div></div>
   <h2>Verdict</h2>${passed ? `
   <p><b>Proposer:</b> ${passed.proposal ? esc(passed.proposal.overall + ' — ' + passed.proposal.summary) : esc(passed.proposalError ?? '')}</p>
   <ul>${(passed.proposal?.criteria ?? []).map((c) => `<li class="${c.pass ? 'ok' : 'bad'}">${esc(c.id)}: ${c.pass ? 'PASS' : 'FAIL'} — ${esc(c.reason)}</li>`).join('')}</ul>

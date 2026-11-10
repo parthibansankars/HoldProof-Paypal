@@ -30,7 +30,8 @@ export async function storeEvidencePhoto(sourceUri: string, fileName: string): P
   if (file.exists) file.delete();
   file.create();
   file.write(result.base64, { encoding: 'base64' });
-  // Hash the stored bytes as read back, so later verification reads exactly the same encoding.
+  // The hash is SHA-256 over the base64 TEXT of the stored file (no line breaks), read back so that later
+  // verification hashes exactly the same encoding. It is not the SHA-256 of the raw JPEG bytes.
   const stored = await file.base64();
   const hash = await sha256(stored);
   return { fileName, base64: stored, sha256: hash };
