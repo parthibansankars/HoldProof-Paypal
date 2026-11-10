@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "HoldProof",
+    "slug": "holdproof",
+    "scheme": "holdproof",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.holdproof.sandbox"
+    },
+    "android": {
+      "package": "app.holdproof.sandbox",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0E1A2B",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "HoldProof uses the camera to capture BEFORE and AFTER evidence photos of a job.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "HoldProof records where each evidence photo was taken, so the BEFORE and AFTER photos can be matched to the same place."
+        }
+      ],
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-sharing",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0E1A2B",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160
+        }
+      ]
+    ]
+  }
+}

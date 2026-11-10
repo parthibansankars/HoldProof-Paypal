@@ -1,0 +1,10 @@
+# Never commit credentials or signing material
+.env
+.env.*
+*.jks
+*.keystore
+!debug.keystore
+keystore.properties
+
+# Local build logs
+build-*.log
