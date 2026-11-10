@@ -59,14 +59,17 @@ where $P_{\text{pass}}$ means the Proposer passed every criterion, $C_{\text{obj
 - **Credentials on a device.** The app asks for sandbox credentials on first launch and keeps them only in Android encrypted storage. Credentials never ship in the APK or the repository, and the app works only against the sandbox. The README describes the production design, in which our own backend holds the secret and receives signature-verified webhooks.
 - **Trusting the AI with money.** A single model can be confidently wrong. Splitting the decision between a Proposer, a Critic and a deterministic Judge made the failure mode "no payment" instead of "wrong payment".
 - **Stating limits honestly.** HoldProof proves that the record was not changed after approval. It does not prove that the photos are truthful, and it does not judge workmanship. It is an authorization hold with AI evidence checking, not escrow.
-- [Fill in after the build: problems found during PayPal sandbox testing and on the device.]
+- **Money states that can get stuck.** A four-agent code review (Reviewer, Devil's Advocate, Fixer, Verifier) found 16 gaps before release, most of them about what happens between PayPal calls: a hold placed but not saved when the connection drops, an order that expires while waiting, a capture PayPal declines. Each now has a recovery path that reads the real state back from PayPal.
+- **Building React Native on Windows.** React Native's generated C++ code produced file paths longer than Windows' 260-character limit. Shortening folder names was not enough; we solved it by telling CMake to hash long object paths (`CMAKE_OBJECT_PATH_MAX`) through a small Expo config plugin.
+- **Keeping the AI free to test.** We moved the agents to the Gemini API's free tier, so judges and workers can try HoldProof without a paid AI subscription, and disclosed the free tier's data-use terms in the app.
 
 ## What we learned
 
 - An authorization hold is an underused trust tool: the worker sees money committed before starting, and the client keeps it until the evidence arrives.
 - Making AI agents argue is as useful for choosing a product as for running one. The Devil's Advocate rejected most early ideas for reasons we would otherwise have discovered only during the demo.
 - Fields that the payer approves, such as `custom_id`, can carry a commitment, so the payment rail doubles as a tamper-evidence store without a blockchain or a server.
-- [Fill in after the build: what PayPal sandbox testing taught us.]
+- An authorization is a state machine, not a single call: CREATED, CAPTURED, VOIDED, EXPIRED and DENIED all need a clear outcome in the app, and the only safe source of truth is PayPal's own read-back.
+- Having agents argue made the code safer too: the Devil's Advocate rejected or narrowed several proposed fixes that would have made things worse.
 
 ## What's next
 

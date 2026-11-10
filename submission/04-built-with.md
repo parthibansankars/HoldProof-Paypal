@@ -1,0 +1,1 @@
+android, react-native, expo, typescript, paypal, paypal-sandbox, paypal-orders-api, paypal-payments-api, paypal-disputes-api, oauth2, rest-api, google-gemini, gemini-api, google-ai-studio, multimodal-ai, ai-agents, expo-camera, expo-location, expo-secure-store, android-keystore, sqlite, sha-256, jest

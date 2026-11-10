@@ -117,7 +117,7 @@ export async function createHold(id: string): Promise<Job> {
   const order = await client.createAuthorizeOrder({
     referenceId: job.id,
     customId: job.digest,
-    description: `HoldProof ${shortDigest(job.digest)} · ${job.title}`,
+    description: `HoldProof ${shortDigest(job.digest)} - ${job.title}`,
     amount: job.amount,
     currency: job.currency,
     returnUrl: APPROVAL_RETURN_URL,

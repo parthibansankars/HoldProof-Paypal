@@ -19,13 +19,13 @@ Install it on an Android phone (Android 8+; allow installs from your browser or 
 The app checks each key before saving it and stores them only in the phone's encrypted storage. They are sandbox and test keys and move no real money.
 
 **3. Client approval account** (used on PayPal's own page, never typed into the app)
-- PayPal Sandbox buyer email: [PASTE SANDBOX BUYER EMAIL]
+- PayPal Sandbox buyer email (a dashboard-created United States Personal account, ending in @personal.example.com): [PASTE SANDBOX BUYER EMAIL]
 - PayPal Sandbox buyer password: [PASTE SANDBOX BUYER PASSWORD]
 
 **4. Happy path (about 5 minutes)**
 1. Tap **Start a new job** → **Use the demo job** → **Generate photo-checkable criteria**. Note the refused criteria. Agree.
 2. Take the **BEFORE** photo of a small cluttered area (for example a desk corner with a few objects).
-3. Tap **Ask client to approve**. Either scan the QR code with a second phone, or tap **Open approval on this phone**. Log in with the sandbox buyer account above and approve. The app shows **HELD** within a few seconds.
+3. Tap **Ask client to approve**. Either scan the QR code with a second phone, or tap **Open approval on this phone**. Log in with the sandbox buyer account above (not the business account that owns the keys; PayPal refuses a payment to yourself), pay with the PayPal balance and approve. The app shows **HELD** within a few seconds.
 4. Clear the area, tap **Job done · take the AFTER photo**, and photograph the same spot from the same position.
 5. Watch the **Proposer**, **Critic** and **Judge** results, then tap **Release** and confirm. The app shows the capture status read back from PayPal.
 
@@ -41,3 +41,6 @@ Start another job, approve the hold, then take the AFTER photo of a *different* 
 - Each photo check makes two AI calls and takes roughly 20 to 60 seconds.
 - You can see every transaction in the sandbox merchant account at https://www.sandbox.paypal.com (business login: [PASTE SANDBOX BUSINESS EMAIL] / [PASTE SANDBOX BUSINESS PASSWORD], optional).
 - These keys stay active until judging ends on 15 December 2026.
+
+**Setup help:** step-by-step account setup and troubleshooting: https://github.com/parthibansankars/HoldProof-Paypal/blob/main/docs/SANDBOX_SETUP.md
+**Demo versus real product:** https://github.com/parthibansankars/HoldProof-Paypal/blob/main/docs/DEMO_VS_PRODUCTION.md

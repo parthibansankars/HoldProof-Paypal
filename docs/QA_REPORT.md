@@ -19,7 +19,7 @@ Judge cases covered by tests include: a PASS verdict with a mismatched amount is
 |---|---|
 | First launch shows the hackathon popup before keys can be entered; it scrolls on a small or large-font screen, the back button does not dismiss it, and it can be reopened from the setup screen and read in Settings | Not run |
 | Location denied or unavailable: the camera refuses to record the photo and offers app settings when permission is blocked | Not run |
-| PayPal Sandbox accepts the `holdproof://` return and cancel URLs at order creation | Not run |
+| PayPal Sandbox completes approval with the HTTPS return and cancel URLs (the earlier `holdproof://` deep link failed with a generic checkout error on a device) | Not run |
 | Invalid PayPal or AI keys are rejected with a clear message | Not run |
 | Scope → BEFORE → order → approval by sandbox buyer → HELD | Not run |
 | Passing AFTER photo → Judge permits → capture → read-back COMPLETED | Not run |

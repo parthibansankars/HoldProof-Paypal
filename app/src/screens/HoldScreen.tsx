@@ -167,11 +167,11 @@ export default function HoldScreen({ navigation, route }: Props) {
             <Text style={type.small}>Waiting for PayPal · order {job.paypalStatus.order ?? '…'}</Text>
           </View>
           <Text style={[type.small, { textAlign: 'center', marginTop: space.sm }]}>
-            The client logs in with a PayPal Sandbox personal account. Money is held, not moved, until the job is verified.
+            The client logs in with a PayPal Sandbox personal account, not the business account that owns the app keys: PayPal refuses a payment to yourself. Money is held, not moved, until the job is verified.
           </Text>
           <Text style={[type.small, { textAlign: 'center', marginTop: space.sm }]}>
-            After the client presses Continue on PayPal, the approval is complete. The client can close the PayPal page, even if it
-            shows a link that cannot be opened. This phone confirms the hold within a few seconds.
+            After the client presses Continue on PayPal, the approval is complete and PayPal opens the HoldProof project page. The
+            client can close it. This phone confirms the hold within a few seconds.
           </Text>
           <Button title="Share agreement and link" variant="ghost" onPress={onShareRecord} />
         </Card>

@@ -64,10 +64,12 @@ The Judge permits a capture only if **all** of these hold: the hold is active an
 
 ### 1. Get sandbox credentials (about 5 minutes)
 
+> **Full step-by-step guide:** [`docs/SANDBOX_SETUP.md`](docs/SANDBOX_SETUP.md) explains the three accounts (developer login, Business receiver, Personal payer), how the receiver is chosen from the Client ID, what happens at each step, and the fixes for every problem met during testing.
+
 | You need | Where | Steps |
 |---|---|---|
 | **PayPal Sandbox Client ID and Secret** | [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox) | Log in → **Apps & Credentials** → make sure **Sandbox** is selected → **Create App** (type: Merchant) → copy the Client ID and Secret. |
-| **A PayPal Sandbox buyer account** (the "client") | Same dashboard → **Testing Tools → Sandbox Accounts** | A *Personal* sandbox account is created automatically. Open it → **View/Edit account** to see its email and password. You log in with it when approving the hold. |
+| **A PayPal Sandbox buyer account** (the "client") | Same dashboard → **Testing Tools → Sandbox Accounts** | A *Personal* sandbox account is created automatically. Open it → **View/Edit account** to see its email and password. You log in with it when approving the hold. **Do not approve with the business account that owns the Client ID:** PayPal refuses a payment to yourself and shows a generic "Things don't appear to be working" error. **Use a dashboard-created United States Personal account** (Create custom account → Personal, United States, PayPal balance 5000; its email ends in `@personal.example.com`) and pay with the PayPal balance. An account registered by hand on the sandbox website (unverified, often outside the US) can log in but is declined at the last step: PayPal redirects as if approved, the order stays `CREATED`, and authorize returns `INSTRUMENT_DECLINED`. |
 | **Gemini API key** (AI agents) | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Sign in with a Google account → **Create API key**. The free tier needs no payment card; each verdict is two vision calls. |
 
 Judges: a ready-to-use credential bundle is provided in the Devpost **private testing instructions**, never in this repository.
@@ -121,6 +123,8 @@ Every POST carries a `PayPal-Request-Id` idempotency key. Money state shown in t
 
 ## Architecture
 
+> **Demo versus real product:** [`docs/DEMO_VS_PRODUCTION.md`](docs/DEMO_VS_PRODUCTION.md) compares, area by area, what this hackathon build does and how the live product would work (worker payouts through partner onboarding, backend-held keys, webhooks, server-side Judge).
+
 ### Hackathon build: direct calls, no backend
 
 ```
@@ -152,7 +156,7 @@ In production the app never calls PayPal directly and never holds a secret:
 - the Judge runs on the backend, so a modified client cannot bypass it;
 - users authenticate against the backend; sandbox and production are configured separately.
 
-More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md), [`docs/SECURITY.md`](docs/SECURITY.md).
+More detail: [`docs/DEMO_VS_PRODUCTION.md`](docs/DEMO_VS_PRODUCTION.md), [`docs/SANDBOX_SETUP.md`](docs/SANDBOX_SETUP.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md), [`docs/SECURITY.md`](docs/SECURITY.md).
 
 ---
 
@@ -182,7 +186,7 @@ On Windows, the Expo config plugin `app/plugins/withShortCmakeObjectPaths.js` se
 - In the hackathon build, the Judge runs on the device. In production it must run on the backend.
 - Sandbox authorizations follow PayPal's rules (honor period and expiry); jobs are meant to finish within days. The Job screen warns when a hold is older than the 3-day honor period.
 - Both photos must carry a GPS location; the camera refuses to record a photo without one, because the Judge cannot permit a capture without it.
-- The order's `return_url` and `cancel_url` are app deep links (`holdproof://approved`, `holdproof://cancelled`) because this build has no server to host a return page. After approving, the client's browser may show a link that cannot be opened; the approval is already complete, and the worker's phone confirms the hold by polling. A production build would return to an HTTPS page served by the backend.
+- The order's `return_url` and `cancel_url` point to this public project page on GitHub, because this build has no server to host a return page (PayPal Sandbox checkout failed with a generic error when the return address was an app deep link). After approving, the client's browser opens the project page; the approval is already complete, and the worker's phone confirms the hold by polling. A production build would return to an HTTPS page served by the backend.
 
 ## Verifying a record by hand
 

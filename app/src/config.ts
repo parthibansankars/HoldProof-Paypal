@@ -14,9 +14,14 @@ export const AI_PROVIDER = 'Google Gemini API';
 /** Stable Gemini model with image input, structured output and a free tier (Google AI Studio). */
 export const AI_MODEL = 'gemini-3.5-flash-lite';
 
-/** Return/cancel URLs after the client approves on PayPal. Deep link back into the app. */
-export const APPROVAL_RETURN_URL = 'holdproof://approved';
-export const APPROVAL_CANCEL_URL = 'holdproof://cancelled';
+/**
+ * Return/cancel URLs after the client approves on PayPal. Plain HTTPS pages (the public project
+ * page), because PayPal Sandbox checkout failed with a generic error when finishing approval to a
+ * custom-scheme deep link. Nothing in the app depends on the redirect: the worker's phone confirms
+ * the hold by reading the order back from PayPal. A production build returns to its own backend page.
+ */
+export const APPROVAL_RETURN_URL = 'https://github.com/parthibansankars/HoldProof-Paypal?approval=approved';
+export const APPROVAL_CANCEL_URL = 'https://github.com/parthibansankars/HoldProof-Paypal?approval=cancelled';
 
 export const POLL_INTERVAL_MS = 3000;
 
@@ -100,7 +105,7 @@ export const SETUP_NOTICE: Notice = {
       lines: [
         'PayPal: PayPal Developer Dashboard > Apps & Credentials > Sandbox > create or open a REST app, then copy its Client ID and Secret.',
         'Gemini: Google AI Studio (aistudio.google.com) > Get API key > create a key. No payment card is needed for the free tier.',
-        'The sandbox BUYER (personal) account is used by the client on PayPal’s own approval page. It is never entered into this app.',
+        'The sandbox BUYER (personal) account is used by the client on PayPal’s own approval page. It is never entered into this app. It must differ from the business account that owns the Client ID: PayPal refuses a payment to yourself.',
       ],
     },
     {
